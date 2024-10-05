@@ -1,4 +1,5 @@
 # Вариант 9
+from argparse import ArgumentError
 
 import numpy as np
 import numpy.linalg as la
@@ -13,6 +14,14 @@ A = np.array([
 B = np.array([8.41, -0.23, 13.91, 9.58])
 
 
+def is_square_matrix(arr: np.ndarray):
+    return len(arr.shape) == 2 and arr.shape[0] == arr.shape[1]
+
+
+def is_row_vector(arr: np.ndarray):
+    return len(arr.shape) == 1
+
+
 def is_diagonally_dominant(A):
     return all([
         abs(A[i][i]) >= sum(np.abs(A[i])) - abs(A[i][i])
@@ -20,35 +29,52 @@ def is_diagonally_dominant(A):
     ])
 
 
-def seidel_iter(A: np.ndarray, B: np.ndarray, e=10 ** (-4), steps_at_least=None):
+def maximize_diagonal(A: np.ndarray):
+    if len(A.shape) != 2:
+        raise ValueError("A should be a matrix!")
+
+    if A.shape[1] < A.shape[0]:
+        raise ValueError("Axis-1 should be >= axis-0, or A should be square!")
+
+    res = A.copy()
+    for row_i in range(A.shape[0]):
+        max_i = np.argmax(res[row_i:, row_i])
+        res[[row_i, max_i]] = res[[max_i, row_i]]
+    return res
+
+
+def seidel_iter(A: np.ndarray, B: np.ndarray, e=10 ** (-4)):
     X = np.ones(B.shape)
     N = len(X)
 
     steps = 0
     norm_diff_predicate = False
-    steps_predicate = True
     X_nx = X.copy()
-    while not norm_diff_predicate or not steps_predicate:
+    while not norm_diff_predicate:
         for i in range(N):
             s1 = sum(
                 A[i, j] * X_nx[j]
                 for j in range(N)
                 if j != i
             )
-            # s2 = sum(
-            #     A[i, j] * X[j]
-            #     for j in range(i + 1, N)
-            # )
-            X_nx[i] = (B[i] - s1) / A[i, i]
+            s2 = sum(
+                A[i, j] * X[j]
+                for j in range(i + 1, N)
+            )
+            X_nx[i] = (B[i] - s1 - s2) / A[i, i]
         norm_diff_predicate = la.norm(X_nx - X) <= e
-        if steps_at_least is not None:
-            steps_predicate = steps >= steps_at_least
         X = X_nx.copy()
         steps += 1
     return X, steps
 
 
 def gauss_elimination(A: np.ndarray, B: np.ndarray):
+    if not is_square_matrix(A):
+        raise ValueError('A should be a square matrix!')
+
+    if not is_row_vector(B) or B.shape[0] != A.shape[0]:
+        raise ValueError(f'B should be size {A.shape[0]} row vector!')
+
     N = len(B)
     aug_matr = np.column_stack((A, B)).astype(dtype='float')
 
@@ -60,11 +86,11 @@ def gauss_elimination(A: np.ndarray, B: np.ndarray):
 
     # Обратный проход
     x = np.zeros(B.shape)
-    matr, col = aug_matr[:, :-1], aug_matr[:, -1]
-    x[-1] = col[-1] / matr[-1, -1]
+    main, col = aug_matr[:, :-1], aug_matr[:, -1]
 
+    x[-1] = col[-1] / main[-1, -1]
     for m in reversed(range(N - 1)):
-        x[m] = col[m] - np.dot(x, matr[m])
+        x[m] = col[m] - np.dot(x, main[m])
     return x
 
 
@@ -72,7 +98,5 @@ x = np.array([
     [1, 2, 3],
     [0, 2, 1],
     [1, 2, 4]
-])
-y = np.array([15, 7, 18])
-
-print('\n answer ', gauss_elimination(A, B))
+], dtype='float')
+y = np.array([15, 7, 18], dtype='float')
